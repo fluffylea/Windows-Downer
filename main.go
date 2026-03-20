@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/energye/systray"
 )
@@ -14,12 +15,12 @@ import (
 //go:embed meow.ico
 var icon []byte
 
-func runShutdown() {
+func runShutdown(duration time.Duration) {
 	var c *exec.Cmd
 
 	switch runtime.GOOS {
 	case "windows":
-		c = exec.Command("cmd", "/C", "shutdown", "/s")
+		c = exec.Command("cmd", "/C", "shutdown", "/s", "/t", duration.Seconds())
 
 	default:
 		c = exec.Command("notify-send", "Meow")
@@ -57,8 +58,13 @@ func onReady() {
 	mQuit := systray.AddMenuItem("Quit", "Exit the application")
 
 	go func() {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			runShutdown()
+		http.HandleFunc("/{duration}", func(w http.ResponseWriter, r *http.Request) {
+			dur, err := time.ParseDuration(r.PathValue("duration"))
+			if (err != nil) {
+				// TODO: Throw 400
+				return
+			}
+			runShutdown(dur)
 		})
 		if err := http.Serve(listener, nil); err != nil {
 			fmt.Println("HTTP server error:", err)
